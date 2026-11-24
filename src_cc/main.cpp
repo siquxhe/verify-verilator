@@ -1,5 +1,6 @@
 #include <iostream>
 #include <memory>
+#include <string>
 
 #include <verilated.h>
 #include <verilated_vcd_c.h>
@@ -11,6 +12,12 @@ int main(int argc, char** argv, char** env) {
 
     // Prevent unused variable warnings
     if (false && argc && argv && env) {}
+
+    // Trace 默认关闭：仅显式传 `+trace` 才打开 VCD，避免常规回归产出巨型波形。
+    bool trace_on = false;
+    for (int i = 1; i < argc; ++i) {
+        if (std::string(argv[i]) == "+trace") { trace_on = true; }
+    }
 
     // Create logs/ directory in case we have traces to put under it
     Verilated::mkdir("logs");
@@ -29,9 +36,11 @@ int main(int argc, char** argv, char** env) {
     contextp->randReset(2);
 
     // Verilator must compute traced signals
-    contextp->traceEverOn(true);
-    top->trace(trace_p.get(), 99);
-    trace_p->open("logs/vlt_dump.vcd");
+    contextp->traceEverOn(trace_on);
+    if (trace_on) {
+        top->trace(trace_p.get(), 99);
+        trace_p->open("logs/vlt_dump.vcd");
+    }
 
     contextp->commandArgs(argc, argv);
 
@@ -93,15 +102,19 @@ int main(int argc, char** argv, char** env) {
 
         // Evaluate model
         top->eval();
-        trace_p->dump(contextp->time());
+        if (trace_on) { trace_p->dump(contextp->time()); }
     }
-    
+
     // Coverage analysis (calling write only after the test is known to pass)
     contextp->coveragep()->write("logs/coverage.dat");
 
     // Final model cleanup
     top->final();
-    trace_p->close();
+    if (trace_on) { trace_p->close(); }
 
     return 0;
 }
+
+// MinGW-w64 链接器不为未定义弱符号兜底；本测试台由 contextp->time() 驱动时间，
+// 此 legacy 桩仅满足链接，运行时不会被调用。
+double sc_time_stamp() { return 0; }

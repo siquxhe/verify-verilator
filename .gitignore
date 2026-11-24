@@ -5,6 +5,8 @@
 *.csrc
 *.vcd
 *.gtkw
+*.exe
+coverage.dat
 obj_*
 logs
 
